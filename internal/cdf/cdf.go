@@ -8,6 +8,7 @@ package cdf
 import (
 	"bytes"
 	"encoding/binary"
+	"sync"
 
 	"github.com/ad3n/mimetype/internal/scan"
 )
@@ -34,7 +35,13 @@ func Detect(raw []byte) CDFType {
 	if !parse(raw, &c) {
 		return CDFTypeGeneric
 	}
-	return c.detect()
+
+	typ := c.detect()
+	if c.pooledCount > 0 {
+		c.releaseBuffers()
+	}
+
+	return typ
 }
 
 // cdf holds everything we need from a CDF file to do detection.
@@ -53,6 +60,43 @@ type cdf struct {
 	rootChild       int32  // directory id of the root storage's child tree
 	rootStorageUUID [16]byte
 	sstBuilt        bool // whether sst was already loaded (it is loaded lazily)
+	pooledBuffers   [4]*[]byte
+	pooledCount     uint8
+}
+
+const maxPooledBufferCapacity = 64 << 10
+
+var byteBufferPool = sync.Pool{
+	New: func() any {
+		buf := make([]byte, 0, 512)
+		return &buf
+	},
+}
+
+func (c *cdf) acquireBuffer() *[]byte {
+	if int(c.pooledCount) >= len(c.pooledBuffers) {
+		return nil
+	}
+
+	buf := byteBufferPool.Get().(*[]byte)
+	*buf = (*buf)[:0]
+	c.pooledBuffers[c.pooledCount] = buf
+	c.pooledCount++
+
+	return buf
+}
+
+func (c *cdf) releaseBuffers() {
+	for i := range c.pooledCount {
+		buf := c.pooledBuffers[i]
+		clear(*buf)
+		if cap(*buf) <= maxPooledBufferCapacity {
+			*buf = (*buf)[:0]
+			byteBufferPool.Put(buf)
+		}
+		c.pooledBuffers[i] = nil
+	}
+	c.pooledCount = 0
 }
 
 // parse reads the entire on-disk structure required for type detection. It
@@ -202,7 +246,8 @@ func (c *cdf) detectFromSummary(streamName string) (CDFType, bool) {
 	if !ok {
 		return CDFTypeGeneric, false
 	}
-	if app := summaryAppName(raw); len(app) > 0 {
+	var appBuf [64]byte
+	if app := summaryAppName(raw, appBuf[:]); len(app) > 0 {
 		if t, ok := lookupSubstring(app, app2type); ok {
 			return t, true
 		}
@@ -473,7 +518,14 @@ func (c *cdf) readLong(sid int32, length uint32) []byte {
 	// non-contiguous directory and stream chains, so this fallback is required
 	// for correct detection on those files.
 	maxBytes := len(c.data)
-	out := make([]byte, 0, c.secSize)
+	bufp := c.acquireBuffer()
+	var out []byte
+	if bufp == nil {
+		out = make([]byte, 0, c.secSize)
+	}
+	if bufp != nil {
+		out = *bufp
+	}
 	for sid >= 0 {
 		if int(sid) >= c.satLen() {
 			break // SAT truncated; return what we have
@@ -487,6 +539,9 @@ func (c *cdf) readLong(sid int32, length uint32) []byte {
 			break // chain longer than the file: cyclic SAT, stop
 		}
 		sid = c.satAt(sid)
+	}
+	if bufp != nil {
+		*bufp = out
 	}
 	if length > 0 && int64(length) < int64(len(out)) {
 		out = out[:length]
@@ -502,8 +557,14 @@ func (c *cdf) readShort(sid int32, length uint32) []byte {
 	if sst == nil {
 		return nil
 	}
-	// TODO: anyway to avoid allocating and copying the bytes?
-	out := make([]byte, 0, c.shortSecSize)
+	bufp := c.acquireBuffer()
+	var out []byte
+	if bufp == nil {
+		out = make([]byte, 0, c.shortSecSize)
+	}
+	if bufp != nil {
+		out = *bufp
+	}
 	for sid >= 0 {
 		off64 := int64(sid) * int64(c.shortSecSize)
 		if off64+int64(c.shortSecSize) > int64(len(sst)) {
@@ -515,6 +576,9 @@ func (c *cdf) readShort(sid int32, length uint32) []byte {
 			break // chain longer than the pool: cyclic SSAT, stop
 		}
 		sid = c.ssatAt(sid)
+	}
+	if bufp != nil {
+		*bufp = out
 	}
 	if length > 0 && int64(length) < int64(len(out)) {
 		out = out[:length]
@@ -589,7 +653,7 @@ const (
 // value of property NameOfApplication (0x12) as printable ASCII, or nil if
 // not present or the stream is malformed. This is the only summary property
 // the detection logic ever consults.
-func summaryAppName(stream []byte) []byte {
+func summaryAppName(stream, dst []byte) []byte {
 	if len(stream) < sectionDeclOffset+20 {
 		return nil
 	}
@@ -632,15 +696,18 @@ func summaryAppName(stream []byte) []byte {
 		if end > uint64(shLen) {
 			return nil
 		}
-		return printableLowBytes(section[start:end], int(step))
+		return printableLowBytes(section[start:end], int(step), dst)
 	}
 	return nil
 }
 
 // printableLowBytes copies the printable low byte of each step-byte unit
 // in b, stopping at the first NUL.
-func printableLowBytes(b []byte, step int) []byte {
-	out := make([]byte, 0, len(b)/step)
+func printableLowBytes(b []byte, step int, dst []byte) []byte {
+	out := dst[:0]
+	if cap(out) < len(b)/step {
+		out = make([]byte, 0, len(b)/step)
+	}
 	for i := 0; i+step <= len(b); i += step {
 		c := b[i]
 		if c == 0 {
