@@ -10,9 +10,9 @@ import (
 // It avoids allocating/copying memory and to verify behaviour, it is tested
 // and fuzzed against encoding/csv parser.
 type Parser struct {
+	s       *scan.Bytes
 	comma   byte
 	comment byte
-	s       *scan.Bytes
 }
 
 func NewParser(comma, comment byte, s *scan.Bytes) *Parser {

@@ -56,6 +56,10 @@ var parserPool = sync.Pool{
 // parserState holds the state of JSON parsing. The number of inspected bytes,
 // the current path inside the JSON object, etc.
 type parserState struct {
+	// currPath keeps a track of the JSON keys parsed up.
+	// It works only for JSON objects. JSON arrays are ignored
+	// mainly because the functionality is not needed.
+	currPath [][]byte
 	// ib represents the number of inspected bytes.
 	// Because mimetype limits itself to only reading the header of the file,
 	// it means sometimes the input JSON can be truncated. In that case, we want
@@ -63,10 +67,6 @@ type parserState struct {
 	// When ib == len(input) it means the JSON was valid (at least the header).
 	ib           int
 	maxRecursion int
-	// currPath keeps a track of the JSON keys parsed up.
-	// It works only for JSON objects. JSON arrays are ignored
-	// mainly because the functionality is not needed.
-	currPath [][]byte
 	// firstToken stores the first JSON token encountered in input.
 	firstToken int
 	// querySatisfied is true if both path and value of any queries passed to

@@ -12,14 +12,14 @@ import (
 // MIME struct holds information about a file format: the string representation
 // of the MIME type, the extension and the parent file format.
 type MIME struct {
-	mime      string
-	aliases   []string
-	extension string
 	// detector receives the raw input and a limit for the number of bytes it is
 	// allowed to check. It returns whether the input matches a signature or not.
-	detector magic.Detector
-	children []*MIME
-	parent   *MIME
+	detector  magic.Detector
+	parent    *MIME
+	mime      string
+	extension string
+	aliases   []string
+	children  []*MIME
 }
 
 // String returns the string representation of the MIME type, e.g., "application/zip".

@@ -40,19 +40,19 @@ func Detect(raw []byte) CDFType {
 // cdf holds everything we need from a CDF file to do detection.
 type cdf struct {
 	data            []byte
-	secSize         int
-	shortSecSize    int
-	minStdStream    uint32
 	satSecs         int32s // list of SAT sector ids; usually a sub-slice of raw input
-	satEntries      int    // number of valid SAT entries reachable through satSecs
-	firstSSAT       int32
 	dirRaw          []byte // directory stream bytes (entries are decoded on demand)
 	sst             []byte // short-stream pool (root storage's stream)
-	sstBuilt        bool   // whether sst was already loaded (it is loaded lazily)
+	secSize         int
+	shortSecSize    int
+	satEntries      int // number of valid SAT entries reachable through satSecs
+	minStdStream    uint32
+	firstSSAT       int32
 	rootStreamFirst int32  // first sector of the root storage short-stream pool
 	rootStreamSize  uint32 // size of the root storage short-stream pool
 	rootChild       int32  // directory id of the root storage's child tree
 	rootStorageUUID [16]byte
+	sstBuilt        bool // whether sst was already loaded (it is loaded lazily)
 }
 
 // parse reads the entire on-disk structure required for type detection. It
