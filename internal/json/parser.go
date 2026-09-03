@@ -134,12 +134,12 @@ func (p *parserState) consumeSpace(b []byte) (n int) {
 func (p *parserState) consumeConst(b, cnst []byte) int {
 	lb := len(b)
 	for i, c := range cnst {
-		if lb > i && b[i] == c {
-			p.ib++
-		} else {
+		if lb <= i || b[i] != c {
 			return 0
 		}
+		p.ib++
 	}
+
 	return len(cnst)
 }
 
@@ -323,52 +323,53 @@ func (p *parserState) consumeObject(b []byte, qs []query, lvl int) (n int) {
 		}
 		if b[n] != '"' {
 			return 0
-		} else {
-			n += 1
-			p.ib++
 		}
+		n++
+		p.ib++
+
 		// queryMatched stores the index of the query satisfying the current path.
 		queryMatched := -1
-		if keyLen := p.consumeString(b[n:]); keyLen == 0 {
+		keyLen := p.consumeString(b[n:])
+		if keyLen == 0 {
 			return 0
-		} else {
-			p.appendPath(b[n:n+keyLen-1], qs)
-			if !p.querySatisfied {
-				queryMatched = queryPathMatch(qs, p.currPath)
-			}
-			n += keyLen
 		}
+		p.appendPath(b[n:n+keyLen-1], qs)
+		if !p.querySatisfied {
+			queryMatched = queryPathMatch(qs, p.currPath)
+		}
+		n += keyLen
+
 		n += p.consumeSpace(b[n:])
 		if len(b[n:]) == 0 {
 			return 0
 		}
 		if b[n] != ':' {
 			return 0
-		} else {
-			n += 1
-			p.ib++
 		}
+		n++
+		p.ib++
+
 		n += p.consumeSpace(b[n:])
 		if len(b[n:]) == 0 {
 			return 0
 		}
 
-		if valLen := p.consumeAny(b[n:], qs, lvl); valLen == 0 {
+		valLen := p.consumeAny(b[n:], qs, lvl)
+		if valLen == 0 {
 			return 0
-		} else {
-			if queryMatched != -1 {
-				q := qs[queryMatched]
-				if len(q.SearchVals) == 0 {
+		}
+		if queryMatched != -1 {
+			q := qs[queryMatched]
+			if len(q.SearchVals) == 0 {
+				p.querySatisfied = true
+			}
+			for _, val := range q.SearchVals {
+				if bytes.Equal(val, bytes.TrimSpace(b[n:n+valLen])) {
 					p.querySatisfied = true
 				}
-				for _, val := range q.SearchVals {
-					if bytes.Equal(val, bytes.TrimSpace(b[n:n+valLen])) {
-						p.querySatisfied = true
-					}
-				}
 			}
-			n += valLen
 		}
+		n += valLen
 		if len(b[n:]) == 0 {
 			return 0
 		}

@@ -157,7 +157,7 @@ func Marc(raw []byte, limit uint32) bool {
 	}
 
 	// First 5 bytes are ASCII digits.
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		if raw[i] < '0' || raw[i] > '9' {
 			return false
 		}

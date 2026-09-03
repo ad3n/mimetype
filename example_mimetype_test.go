@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gabriel-vasile/mimetype"
+	"github.com/ad3n/mimetype"
 )
 
 func Example_detect() {
@@ -49,9 +49,10 @@ func Example_whitelist() {
 
 	if mimetype.EqualsAny(mtype.String(), allowed...) {
 		fmt.Printf("%s is allowed\n", mtype)
-	} else {
-		fmt.Printf("%s is now allowed\n", mtype)
+		return
 	}
+
+	fmt.Printf("%s is now allowed\n", mtype)
 	// Output: text/plain; charset=utf-8 is allowed
 }
 

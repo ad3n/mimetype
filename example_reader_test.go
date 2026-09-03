@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/gabriel-vasile/mimetype"
+	"github.com/ad3n/mimetype"
 )
 
 // Pure io.Readers (meaning those without a Seek method) cannot be read twice.

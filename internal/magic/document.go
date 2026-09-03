@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 // Pdf matches a Portable Document Format file.

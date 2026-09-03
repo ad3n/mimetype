@@ -1,8 +1,8 @@
 package magic
 
 import (
-	"github.com/gabriel-vasile/mimetype/internal/csv"
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/csv"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 // CSV matches a comma-separated values file.
@@ -31,25 +31,19 @@ func sv(in []byte, comma byte, limit uint32) bool {
 		}
 		if fields == headerFields {
 			csvLines++
-		} else {
-			// maybeTruncated signals the input was cut at the read limit,
-			// meaning the last line may be an incomplete CSV record.
-			maybeTruncated := limit > 0 && uint64(len(in)) >= uint64(limit)
-			if maybeTruncated && fields < headerFields {
-				// Allow the last row to have any number of fields
-				// if the input is maybeTruncated.
-				// BUG: if len(input) == limit, then the input is not truncated
-				// but it is still allowed to have the wrong number of fields
-				// and it will be reported as valid CSV.
-				if len(s) == 0 {
-					break
-				}
+			if csvLines >= 10 {
+				return true
 			}
-			return false
+			continue
 		}
-		if csvLines >= 10 {
-			return true
+
+		// maybeTruncated signals the input was cut at the read limit,
+		// meaning the last line may be an incomplete CSV record.
+		maybeTruncated := limit > 0 && uint64(len(in)) >= uint64(limit)
+		if maybeTruncated && fields < headerFields && len(s) == 0 {
+			break
 		}
+		return false
 	}
 
 	return csvLines >= 2

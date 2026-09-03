@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 var getAnAttributeTestCases = []struct {

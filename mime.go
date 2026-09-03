@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gabriel-vasile/mimetype/internal/charset"
-	"github.com/gabriel-vasile/mimetype/internal/magic"
+	"github.com/ad3n/mimetype/internal/charset"
+	"github.com/ad3n/mimetype/internal/magic"
 )
 
 // MIME struct holds information about a file format: the string representation
@@ -58,7 +58,7 @@ func (m *MIME) Parent() *MIME {
 // section, ignores any optional MIME parameters, ignores any leading and
 // trailing whitespace, and is case insensitive.
 //
-// [aliases]: https://github.com/gabriel-vasile/mimetype/blob/master/supported_mimes.md
+// [aliases]: https://github.com/ad3n/mimetype/blob/master/supported_mimes.md
 func (m *MIME) Is(expectedMIME string) bool {
 	// Parsing is needed because some detected MIME types contain parameters
 	// that need to be stripped for the comparison.
@@ -152,7 +152,8 @@ func (m *MIME) hierarchy() string {
 				e = "root"
 			}
 		}
-		h.WriteString(">" + e)
+		h.WriteString(">")
+		h.WriteString(e)
 	}
 	return strings.TrimPrefix(h.String(), ">")
 }

@@ -10,11 +10,11 @@
 </h6>
 
 <p align="center">
-  <a href="https://pkg.go.dev/github.com/gabriel-vasile/mimetype">
-    <img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/gabriel-vasile/mimetype.svg">
+  <a href="https://pkg.go.dev/github.com/ad3n/mimetype">
+    <img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/ad3n/mimetype.svg">
   </a>
-  <a href="https://github.com/gabriel-vasile/mimetype/actions/workflows/go.yml">
-    <img alt="Tests" src="https://github.com/gabriel-vasile/mimetype/actions/workflows/go.yml/badge.svg">
+  <a href="https://github.com/ad3n/mimetype/actions/workflows/go.yml">
+    <img alt="Tests" src="https://github.com/ad3n/mimetype/actions/workflows/go.yml/badge.svg">
   </a>
   <a href="https://codecov.io/gh/gabriel-vasile/mimetype">
     <img alt="Code coverage" src="https://codecov.io/gh/gabriel-vasile/mimetype/graph/badge.svg">
@@ -27,15 +27,15 @@
 ## Features
 - fast and precise MIME type and file extension detection
 - long list of [supported MIME types](supported_mimes.md)
-- possibility to [extend](https://pkg.go.dev/github.com/gabriel-vasile/mimetype#example-package-Extend) with other file formats
+- possibility to [extend](https://pkg.go.dev/github.com/ad3n/mimetype#example-package-Extend) with other file formats
 - common file formats are prioritized
-- [text vs. binary files differentiation](https://pkg.go.dev/github.com/gabriel-vasile/mimetype#example-package-TextVsBinary)
+- [text vs. binary files differentiation](https://pkg.go.dev/github.com/ad3n/mimetype#example-package-TextVsBinary)
 - no external dependencies
 - safe for concurrent usage
 
 ## Install
 ```bash
-go get github.com/gabriel-vasile/mimetype
+go get github.com/ad3n/mimetype
 ```
 
 ## Usage
@@ -47,7 +47,7 @@ mtype, err := mimetype.DetectReader(io.Reader)
 mtype, err := mimetype.DetectFile("/path/to/file")
 fmt.Println(mtype.String(), mtype.Extension())
 ```
-See the [runnable Go Playground examples](https://pkg.go.dev/github.com/gabriel-vasile/mimetype#pkg-overview).
+See the [runnable Go Playground examples](https://pkg.go.dev/github.com/ad3n/mimetype#pkg-overview).
 
 Caution: only use libraries like **mimetype** as a last resort. Content type detection
 using magic numbers is slow, inaccurate, and non-standard. Most of the times
@@ -68,7 +68,7 @@ mimetype.SetLimit(0) // No limit, whole file content used.
 mimetype.DetectFile("file.doc")
 ```
 If increasing the limit does not help, please
-[open an issue](https://github.com/gabriel-vasile/mimetype/issues/new?assignees=&labels=&template=mismatched-mime-type-detected.md&title=).
+[open an issue](https://github.com/ad3n/mimetype/issues/new?assignees=&labels=&template=mismatched-mime-type-detected.md&title=).
 
 ## Tests
 In addition to unit tests,
@@ -79,7 +79,7 @@ for around 50 000 sample files. Check the latest comparison results
 
 ## Benchmarks
 Benchmarks are performed when a PR is open. The results can be seen on the
-[workflows page](https://github.com/gabriel-vasile/mimetype/actions/workflows/benchmark.yml).
+[workflows page](https://github.com/ad3n/mimetype/actions/workflows/benchmark.yml).
 Performance improvements are welcome but correctness is prioritized.
 
 ## Structure
@@ -92,8 +92,8 @@ zip, there is no need to check if it is a text file, but it is worth checking if
 it is an Microsoft Office file.
 
 To prevent loading entire files into memory, when detecting from a
-[reader](https://pkg.go.dev/github.com/gabriel-vasile/mimetype#DetectReader)
-or from a [file](https://pkg.go.dev/github.com/gabriel-vasile/mimetype#DetectFile)
+[reader](https://pkg.go.dev/github.com/ad3n/mimetype#DetectReader)
+or from a [file](https://pkg.go.dev/github.com/ad3n/mimetype#DetectFile)
 **mimetype** limits itself to reading only the header of the input.
 <div align="center">
   <img alt="how project is structured" src="https://raw.githubusercontent.com/gabriel-vasile/mimetype/master/testdata/gif.gif" width="88%">

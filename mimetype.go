@@ -53,20 +53,21 @@ func DetectReader(r io.Reader) (*MIME, error) {
 		if err != nil {
 			return errMIME, err
 		}
-	} else {
-		var n int
+	}
+	if l > 0 {
 		in = make([]byte, l)
 		// io.UnexpectedEOF means len(r) < len(in). It is not an error in this case,
 		// it just means the input file is smaller than the allocated bytes slice.
-		n, err = io.ReadFull(r, in)
-		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-			return errMIME, err
+		n, readErr := io.ReadFull(r, in)
+		if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
+			return errMIME, readErr
 		}
 		in = in[:n]
 	}
 
 	mu.RLock()
 	defer mu.RUnlock()
+
 	return root.match(in, l), nil
 }
 

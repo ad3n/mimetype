@@ -411,9 +411,12 @@ func TestDetect(t *testing.T) {
 			if mtype := Detect([]byte(tc.data)); mtype.String() != tc.expectedMIME {
 				t.Errorf("Detect: Expected: %s != Detected: %s", tc.expectedMIME, mtype.String())
 			}
-			if mtype, err := DetectReader(strings.NewReader(tc.data)); err != nil {
+			mtype, err := DetectReader(strings.NewReader(tc.data))
+			if err != nil {
 				t.Errorf("DetectReader: unexpected error: %s", err)
-			} else if mtype.String() != tc.expectedMIME {
+				return
+			}
+			if mtype.String() != tc.expectedMIME {
 				t.Errorf("DetectReader: Expected: %s != Detected: %s", tc.expectedMIME, mtype.String())
 			}
 		})
@@ -441,9 +444,12 @@ func TestDetectWonkyReaders(t *testing.T) {
 	for name, reader := range wonkyReaders {
 		t.Run(name, func(t *testing.T) {
 			wr := reader(bytes.NewReader(data))
-			if mtype, err := DetectReader(wr); err != nil {
+			mtype, err := DetectReader(wr)
+			if err != nil {
 				t.Errorf("Unexpected error: %s", err)
-			} else if expect := "text/html; charset=utf-8"; mtype.String() != expect {
+				return
+			}
+			if expect := "text/html; charset=utf-8"; mtype.String() != expect {
 				t.Errorf("Expected: %s != Detected: %s", expect, mtype.String())
 			}
 		})
@@ -514,16 +520,20 @@ func TestEqualsAny(t *testing.T) {
 
 func TestFaultyInput(t *testing.T) {
 	inexistent := "inexistent.file"
-	if mtype, err := DetectFile(inexistent); err == nil {
+	mtype, err := DetectFile(inexistent)
+	if err == nil {
 		t.Errorf("%s should not match successfully", inexistent)
-	} else if mtype.String() != "application/octet-stream" {
+	}
+	if err != nil && mtype.String() != "application/octet-stream" {
 		t.Errorf("inexistent.file expected application/octet-stream, got %s", mtype)
 	}
 
 	f, _ := os.Open(inexistent)
-	if mtype, err := DetectReader(f); err == nil {
+	mtype, err = DetectReader(f)
+	if err == nil {
 		t.Errorf("%s reader should not match successfully", inexistent)
-	} else if mtype.String() != "application/octet-stream" {
+	}
+	if err != nil && mtype.String() != "application/octet-stream" {
 		t.Errorf("inexistent.file reader expected application/octet-stream, got %s", mtype)
 	}
 }
@@ -561,25 +571,25 @@ func TestConcurrent(t *testing.T) {
 	n := uint32(1000)
 	Extend(func([]byte, uint32) bool { return false }, "e", ".e")
 	go func() {
-		for i := uint32(0); i < n; i++ {
+		for range n {
 			Detect([]byte("text content"))
 		}
 		wg.Done()
 	}()
 	go func() {
-		for i := uint32(0); i < n; i++ {
+		for i := range n {
 			SetLimit(5000 + i)
 		}
 		wg.Done()
 	}()
 	go func() {
-		for i := uint32(0); i < n; i++ {
+		for range n {
 			Lookup("text/plain")
 		}
 		wg.Done()
 	}()
 	go func() {
-		for i := uint32(0); i < n; i++ {
+		for range n {
 			Lookup("e").Extend(func([]byte, uint32) bool { return false }, "e", ".e")
 		}
 		wg.Done()
@@ -702,7 +712,7 @@ func TestIndexOutOfRangePanic(t *testing.T) {
 	testAtEachIndex := func(t *testing.T, in []byte) {
 		t.Helper()
 		for _, n := range nodes {
-			for i := 0; i < len(in); i++ {
+			for i := range in {
 				n.detector(in[:i], 1<<10)
 			}
 		}
@@ -855,10 +865,12 @@ func TestExtend(t *testing.T) {
 	for _, tt := range data {
 		t.Run(fmt.Sprintf("extending to %s", tt.mime), func(t *testing.T) {
 			extend := Extend
-			if tt.parent != nil {
-				extend = tt.parent.Extend
-			} else {
+			useParentExtend := tt.parent != nil
+			if tt.parent == nil {
 				tt.parent = root
+			}
+			if useParentExtend {
+				extend = tt.parent.Extend
 			}
 
 			extend(func(raw []byte, limit uint32) bool { return false }, tt.mime, tt.ext)

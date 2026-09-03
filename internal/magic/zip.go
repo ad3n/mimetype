@@ -3,7 +3,7 @@ package magic
 import (
 	"bytes"
 
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 // Odt matches an OpenDocument Text file.
@@ -135,18 +135,20 @@ func (z zipEntries) match(file []byte) bool {
 			if bytes.HasPrefix(file, z[i].name) {
 				return true
 			}
-		} else {
-			if bytes.Equal(file, z[i].name) {
-				return true
-			}
+			continue
+		}
+
+		if bytes.Equal(file, z[i].name) {
+			return true
 		}
 	}
+
 	return false
 }
 
 func zipHas(raw scan.Bytes, searchFor zipEntries, stopAfter int) bool {
 	iter := zipIterator{raw}
-	for i := 0; i < stopAfter; i++ {
+	for range stopAfter {
 		f := iter.next()
 		if len(f) == 0 {
 			break
@@ -163,7 +165,7 @@ func zipHas(raw scan.Bytes, searchFor zipEntries, stopAfter int) bool {
 // entry can be.
 func msoxml(raw scan.Bytes, searchFor zipEntries, stopAfter int) bool {
 	iter := zipIterator{raw}
-	for i := 0; i < stopAfter; i++ {
+	for i := range stopAfter {
 		f := iter.next()
 		if len(f) == 0 {
 			break

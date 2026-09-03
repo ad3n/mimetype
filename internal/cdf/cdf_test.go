@@ -32,7 +32,7 @@ func testHeader(secSize int, firstDirSec, firstSSAT int32, minStdStream uint32, 
 	binary.LittleEndian.PutUint32(h[60:], uint32(firstSSAT))
 	binary.LittleEndian.PutUint32(h[68:], uint32(0xFFFFFFFE)) // no extra master SAT sectors
 	binary.LittleEndian.PutUint32(h[72:], 0)
-	for i := 0; i < masterSATSize; i++ {
+	for i := range masterSATSize {
 		v := int32(-1)
 		if i < len(masterSAT) {
 			v = masterSAT[i]
@@ -377,7 +377,7 @@ func TestDetectMasterSATExtension(t *testing.T) {
 	binary.LittleEndian.PutUint32(data[72:], 1)       // one extension sector
 
 	// Mark every SAT entry free, then set the entries actually used.
-	for i := int32(0); i < masterSATSize; i++ {
+	for i := range int32(masterSATSize) {
 		copy(sector(i), idSector(testSecSize))
 	}
 	satIDs := make([]int32, testSecSize/4)
@@ -587,7 +587,7 @@ func TestBuildSATTruncatedMSATNoPanic(t *testing.T) {
 			put32(data, tc.secSize, 0)
 
 			if cdf := Detect(data); cdf != CDFTypeGeneric {
-				t.Errorf("expected: %q, got: %q", CDFTypeGeneric, cdf)
+				t.Errorf("expected: %v, got: %v", CDFTypeGeneric, cdf)
 			}
 		})
 	}
@@ -622,7 +622,7 @@ func TestCyclicChainBounded(t *testing.T) {
 	put32(data, secSize+4, 1)
 
 	if cdf := Detect(data); cdf != CDFTypeGeneric {
-		t.Errorf("expected: %q, got: %q", CDFTypeGeneric, cdf)
+		t.Errorf("expected: %v, got: %v", CDFTypeGeneric, cdf)
 	}
 }
 
@@ -830,7 +830,7 @@ func FuzzDetect(f *testing.F) {
 		rng := rand.New(rand.NewPCG(h.Sum64(), 0))
 		// Truncate the data at random offsets. Truncating on each offset is
 		// too expensive.
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			j := rng.IntN(len(data))
 			_ = Detect(data[:j]) // must not panic on any input
 		}

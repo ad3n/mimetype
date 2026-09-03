@@ -5,7 +5,7 @@ package markup
 import (
 	"bytes"
 
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 // GetAnAttribute assumes we passed over an SGML tag and extracts first
@@ -33,7 +33,8 @@ func GetAnAttribute(s *scan.Bytes) (name, val []byte, hasMore bool) {
 		if bap == '=' && end > 0 {
 			val, hasMore := getAValue(s)
 			return origS[:end], val, hasMore
-		} else if scan.ByteIsWS(bap) {
+		}
+		if scan.ByteIsWS(bap) {
 			for scan.ByteIsWS(s.Peek()) {
 				s.Advance(1)
 			}
@@ -46,11 +47,11 @@ func GetAnAttribute(s *scan.Bytes) (name, val []byte, hasMore bool) {
 			}
 			val, hasMore := getAValue(s)
 			return origS[:end], val, hasMore
-		} else if bap == '/' || bap == '>' {
-			return origS[:end], nil, false
-		} else { // for any ASCII, non-ASCII, just advance
-			end++
 		}
+		if bap == '/' || bap == '>' {
+			return origS[:end], nil, false
+		}
+		end++
 	}
 }
 

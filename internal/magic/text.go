@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"time"
 
-	"github.com/gabriel-vasile/mimetype/internal/charset"
-	"github.com/gabriel-vasile/mimetype/internal/json"
-	mkup "github.com/gabriel-vasile/mimetype/internal/markup"
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/charset"
+	"github.com/ad3n/mimetype/internal/json"
+	mkup "github.com/ad3n/mimetype/internal/markup"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 // HTML matches a Hypertext Markup Language file.
@@ -416,7 +416,8 @@ func NdJSON(raw []byte, limit uint32) bool {
 			if inspected != len(l) {
 				return false
 			}
-		} else if parsed != len(l) {
+		}
+		if len(s) != 0 && parsed != len(l) {
 			return false
 		}
 		if firstToken == json.TokArray || firstToken == json.TokObject {
@@ -606,7 +607,7 @@ func RFC822(raw []byte, limit uint32) bool {
 	if !lineHasRFC822Hint(b.Line(), hints) {
 		return false
 	}
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		if lineHasRFC822Hint(b.Line(), hints) {
 			return true
 		}
@@ -656,7 +657,7 @@ func GEDCOM(raw []byte, limit uint32) bool {
 	}
 
 	// "1 GEDC" is mandatory in the header
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		line := b.Line()
 		if bytes.Equal(line, []byte("1 GEDC")) {
 			return true

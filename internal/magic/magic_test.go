@@ -3,7 +3,7 @@ package magic
 import (
 	"testing"
 
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 func TestShebangCheck(t *testing.T) {

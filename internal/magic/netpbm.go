@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strconv"
 
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 // NetPBM matches a Netpbm Portable BitMap ASCII/Binary file.
@@ -39,7 +39,7 @@ func NetPAM(raw []byte, _ uint32) bool {
 	s := scan.Bytes(raw)
 	var l scan.Bytes
 	// Read line by line.
-	for i := 0; i < 128; i++ {
+	for range 128 {
 		l = s.Line()
 		// If the line is empty or a comment, skip.
 		if len(l) == 0 || l.Peek() == '#' {
@@ -47,17 +47,20 @@ func NetPAM(raw []byte, _ uint32) bool {
 				return false
 			}
 			continue
-		} else if bytes.HasPrefix(l, []byte("TUPLTYPE")) {
+		}
+
+		switch {
+		case bytes.HasPrefix(l, []byte("TUPLTYPE")):
 			continue
-		} else if bytes.HasPrefix(l, []byte("WIDTH ")) {
+		case bytes.HasPrefix(l, []byte("WIDTH ")):
 			w = true
-		} else if bytes.HasPrefix(l, []byte("HEIGHT ")) {
+		case bytes.HasPrefix(l, []byte("HEIGHT ")):
 			h = true
-		} else if bytes.HasPrefix(l, []byte("DEPTH ")) {
+		case bytes.HasPrefix(l, []byte("DEPTH ")):
 			d = true
-		} else if bytes.HasPrefix(l, []byte("MAXVAL ")) {
+		case bytes.HasPrefix(l, []byte("MAXVAL ")):
 			m = true
-		} else if bytes.HasPrefix(l, []byte("ENDHDR")) {
+		case bytes.HasPrefix(l, []byte("ENDHDR")):
 			e = true
 		}
 		// When we reached header, return true if we collected all four required headers.
@@ -83,7 +86,7 @@ func netp(s scan.Bytes, prefixes ...string) bool {
 
 	var l scan.Bytes
 	// Read line by line.
-	for i := 0; i < 128; i++ {
+	for range 128 {
 		l = s.Line()
 		// If the line is a comment, skip.
 		if l.Peek() == '#' {

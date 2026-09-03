@@ -40,7 +40,7 @@ func repeatFrames(header []byte, frameSize, count int, rng bool) []byte {
 	var out []byte
 
 	r := rand.NewChaCha8([32]byte{})
-	for i := 0; i < count; i++ {
+	for range count {
 		frame := make([]byte, frameSize)
 		if rng {
 			_, _ = r.Read(frame)
@@ -246,7 +246,7 @@ func BenchmarkExtractFrame(b *testing.B) {
 
 func FuzzExtractFrame(f *testing.F) {
 	overlapHeadOnFrame := func(head, frame []byte) {
-		for i := 0; i < 4; i++ {
+		for i := range 4 {
 			frame[i] = head[i]
 		}
 	}

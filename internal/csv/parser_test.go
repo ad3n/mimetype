@@ -9,7 +9,7 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 type line struct {
@@ -180,7 +180,7 @@ func stdlibLines(data string, comma, comment byte) ([]line, [][]string, error) {
 			return nil, nil, err
 		}
 		indexes := []int{}
-		for i := 0; i < len(l); i++ {
+		for i := range l {
 			_, c := r.FieldPos(i)
 			// FieldPos starts counting from 1, but our parser counts from 0.
 			// Adjust -1 so tests match.
@@ -215,7 +215,8 @@ func BenchmarkCSVStdlibDecoder(b *testing.B) {
 			_, err := d.Read()
 			if err == io.EOF {
 				break
-			} else if err != nil {
+			}
+			if err != nil {
 				b.Fatalf("error parsing CSV: %s", err)
 			}
 		}

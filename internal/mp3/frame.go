@@ -40,7 +40,7 @@ func matchFrame(buf []byte) bool {
 	const maxFrameSyncMatches = 10
 	hdr := header{buf[0], buf[1], buf[2], buf[3]}
 	i := hdr.frameBytes() + hdr.padding()
-	for nmatch := 0; nmatch < maxFrameSyncMatches; nmatch++ {
+	for nmatch := range maxFrameSyncMatches {
 		if i+headerSize > len(buf) {
 			return nmatch >= minTruncatedSyncMatches
 		}

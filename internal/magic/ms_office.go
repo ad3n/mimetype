@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/gabriel-vasile/mimetype/internal/cdf"
+	"github.com/ad3n/mimetype/internal/cdf"
 )
 
 // Xlsx matches a Microsoft Excel 2007 file.

@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"slices"
 
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 // Png matches a Portable Network Graphics file.

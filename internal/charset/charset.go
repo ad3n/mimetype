@@ -5,8 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/gabriel-vasile/mimetype/internal/markup"
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/markup"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 const (

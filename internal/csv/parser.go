@@ -3,7 +3,7 @@ package csv
 import (
 	"bytes"
 
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 // Parser is a CSV reader that only counts fields.
@@ -82,33 +82,35 @@ parseField:
 				continue parseField
 			}
 			break parseField
-		} else { // Quoted string field.
-			if collectIndexes {
-				indexes = append(indexes, len(originalLine)-len(line))
-			}
-			line.Advance(1) // get over starting quote
-			for {
-				i := bytes.IndexByte(line, '"')
-				if i >= 0 {
-					line.Advance(i + 1) // 1 for ending quote
-					switch rn := line.Peek(); {
-					case rn == '"':
-						line.Advance(1)
-					case rn == r.comma:
-						line.Advance(1)
-						fields++
-						continue parseField
-					case lengthNL(line) == len(line):
-						fields++
-						break parseField
-					}
-				} else if len(line) > 0 || cutShort {
+		}
+
+		if collectIndexes {
+			indexes = append(indexes, len(originalLine)-len(line))
+		}
+		line.Advance(1) // get over starting quote
+		for {
+			i := bytes.IndexByte(line, '"')
+			if i < 0 {
+				if len(line) > 0 || cutShort {
 					line, cutShort = r.readLine()
 					originalLine = line
-				} else {
-					fields++
-					break parseField
+					continue
 				}
+				fields++
+				break parseField
+			}
+
+			line.Advance(i + 1) // 1 for ending quote
+			switch rn := line.Peek(); {
+			case rn == '"':
+				line.Advance(1)
+			case rn == r.comma:
+				line.Advance(1)
+				fields++
+				continue parseField
+			case lengthNL(line) == len(line):
+				fields++
+				break parseField
 			}
 		}
 	}

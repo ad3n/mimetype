@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/gabriel-vasile/mimetype/internal/scan"
+	"github.com/ad3n/mimetype/internal/scan"
 )
 
 type CDFType int8
@@ -130,12 +130,14 @@ type rootChildIter struct {
 // Usage: for it := c.rootChildren(); it.next(); { ... use it.d ... }
 func (c *cdf) rootChildren() rootChildIter {
 	it := rootChildIter{c: c, n: c.dirLen()}
-	if c.rootChild >= 0 && int(c.rootChild) < it.n {
-		it.stack[0] = c.rootChild
-		it.sp = 1
-	} else {
+	if c.rootChild < 0 || int(c.rootChild) >= it.n {
 		it.flat = true
+		return it
 	}
+
+	it.stack[0] = c.rootChild
+	it.sp = 1
+
 	return it
 }
 
@@ -380,7 +382,7 @@ chain:
 		if !ok {
 			break
 		}
-		for k := 0; k < perSec; k++ {
+		for k := range perSec {
 			if k >= msa.len() || msa.at(k) < 0 {
 				break chain
 			}
@@ -601,7 +603,7 @@ func summaryAppName(stream []byte) []byte {
 	if uint64(shLen) > uint64(len(section)) || nProps > 1<<16 || 8+8*nProps > shLen {
 		return nil
 	}
-	for i := uint32(0); i < nProps; i++ {
+	for i := range nProps {
 		base := 8 + 8*i
 		id := binary.LittleEndian.Uint32(section[base:])
 		if id != propIDNameOfApplication {

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mimetype Go Style"
+  short_description: "Apply the project Go control-flow and syntax conventions"
+  default_prompt: "Use $mimetype-go-style to apply the repository's Go control-flow and syntax rules to this change."

@@ -99,10 +99,11 @@ func (b *Bytes) ReadSlice(stopAt byte) Bytes {
 		return Bytes{}
 	}
 	i := bytes.IndexByte(*b, stopAt)
+	if i != -1 {
+		i++
+	}
 	if i == -1 {
 		i = len(*b)
-	} else {
-		i++
 	}
 
 	prefix := (*b)[:i]
@@ -176,9 +177,8 @@ func (b Bytes) Search(p []byte, flags Flags) (i int, l int) {
 	if flags == 0 {
 		if i = bytes.Index(b, p); i == -1 {
 			return -1, 0
-		} else {
-			return i, lp
 		}
+		return i, lp
 	}
 
 	for i := range b {
@@ -222,7 +222,9 @@ func (b Bytes) Match(p []byte, flags Flags) int {
 				return -1
 			}
 			b, p = b[1:], p[1:]
-		} else if flags&CompactWS > 0 && ByteIsWS(p[0]) {
+			continue
+		}
+		if flags&CompactWS > 0 && ByteIsWS(p[0]) {
 			p = p[1:]
 			if !ByteIsWS(b[0]) {
 				return -1
@@ -231,12 +233,12 @@ func (b Bytes) Match(p []byte, flags Flags) int {
 			if len(p) > 0 && !ByteIsWS(p[0]) {
 				b.TrimLWS()
 			}
-		} else {
-			if b[0] != p[0] {
-				return -1
-			}
-			b, p = b[1:], p[1:]
+			continue
 		}
+		if b[0] != p[0] {
+			return -1
+		}
+		b, p = b[1:], p[1:]
 	}
 out:
 	// If p still has leftover characters, it means it didn't fully match b.
