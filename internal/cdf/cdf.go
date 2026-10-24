@@ -295,29 +295,32 @@ type dirEntry struct {
 // nameBytes returns the decoded ASCII name without copying.
 func (d *dirEntry) nameBytes() []byte { return d.name[:d.nameLen] }
 
-// buildSSAT records the list of SSAT sector ids by walking the firstSSAT chain
-// through the SAT once. The SSAT contents are not materialized; ssatAt computes
-// the requested entry directly from c.data via ssatSecs, mirroring satSecs/satAt.
-// The walk is bounded by the number of sectors in the file so a cyclic SAT
-// (a self-looping sector) cannot spin forever.
 func (c *cdf) buildSSAT() {
 	maxIDs := len(c.data)/c.secSize + 1
-	buf := make([]byte, 0, 4*8)
+	var buf []byte
 	var tmp [4]byte
 	for sid := c.firstSSAT; sid >= 0; {
 		if int(sid) >= c.satLen() {
-			break // SAT is truncated; stop collecting
+			break
 		}
+
 		if _, ok := c.sector(sid); !ok {
 			break
 		}
+
+		if buf == nil {
+			buf = make([]byte, 0, 4*8)
+		}
+
 		binary.LittleEndian.PutUint32(tmp[:], uint32(sid)) //nolint:gosec // reinterpret sector id
 		buf = append(buf, tmp[:]...)
 		if len(buf)/4 > maxIDs {
-			break // cyclic SAT chain; stop allocating
+			break
 		}
+
 		sid = c.satAt(sid)
 	}
+
 	c.ssatSecs = int32s{b: buf}
 }
 
