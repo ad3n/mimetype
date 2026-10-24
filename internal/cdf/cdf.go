@@ -46,8 +46,10 @@ func Detect(raw []byte) CDFType {
 
 // cdf holds everything we need from a CDF file to do detection.
 type cdf struct {
+	pooledBuffers   [4]*[]byte
 	data            []byte
 	satSecs         int32s // list of SAT sector ids; usually a sub-slice of raw input
+	ssatSecs        int32s
 	dirRaw          []byte // directory stream bytes (entries are decoded on demand)
 	sst             []byte // short-stream pool (root storage's stream)
 	secSize         int
@@ -60,7 +62,6 @@ type cdf struct {
 	rootChild       int32  // directory id of the root storage's child tree
 	rootStorageUUID [16]byte
 	sstBuilt        bool // whether sst was already loaded (it is loaded lazily)
-	pooledBuffers   [4]*[]byte
 	pooledCount     uint8
 }
 
@@ -126,6 +127,7 @@ func parse(raw []byte, c *cdf) bool {
 	masterSAT := int32s{b: raw[76 : 76+4*masterSATSize]}
 
 	c.buildSAT(masterSAT, firstMSAT, nMSAT)
+	c.buildSSAT()
 	c.dirRaw = c.readLong(firstDirSec, 0)
 
 	c.rootStreamFirst = -1
@@ -293,23 +295,56 @@ type dirEntry struct {
 // nameBytes returns the decoded ASCII name without copying.
 func (d *dirEntry) nameBytes() []byte { return d.name[:d.nameLen] }
 
-func (c *cdf) ssatAt(i int32) int32 {
+// buildSSAT records the list of SSAT sector ids by walking the firstSSAT chain
+// through the SAT once. The SSAT contents are not materialized; ssatAt computes
+// the requested entry directly from c.data via ssatSecs, mirroring satSecs/satAt.
+// The walk is bounded by the number of sectors in the file so a cyclic SAT
+// (a self-looping sector) cannot spin forever.
+func (c *cdf) buildSSAT() {
+	maxIDs := len(c.data)/c.secSize + 1
+	buf := make([]byte, 0, 4*8)
+	var tmp [4]byte
 	for sid := c.firstSSAT; sid >= 0; {
 		if int(sid) >= c.satLen() {
 			break // SAT is truncated; stop collecting
 		}
-		buf, ok := c.sector(sid)
-		if !ok {
+		if _, ok := c.sector(sid); !ok {
 			break
 		}
-		lbuf := int32(len(buf) / 4) //nolint:gosec // anything divided by 4 fits int32
-		if i < lbuf {
-			return int32(binary.LittleEndian.Uint32(buf[4*i:])) //nolint:gosec // intentional two's-complement reinterpretation of a sector id
+		binary.LittleEndian.PutUint32(tmp[:], uint32(sid)) //nolint:gosec // reinterpret sector id
+		buf = append(buf, tmp[:]...)
+		if len(buf)/4 > maxIDs {
+			break // cyclic SAT chain; stop allocating
 		}
-		i -= lbuf
 		sid = c.satAt(sid)
 	}
-	return -1
+	c.ssatSecs = int32s{b: buf}
+}
+
+// ssatAt returns the i-th SSAT entry (a short-sector id) by indexing directly
+// into the precomputed ssatSecs, the same way satAt indexes satSecs. It returns
+// -1 when i is past the end of the SSAT or the backing sector is truncated.
+func (c *cdf) ssatAt(i int32) int32 {
+	if i < 0 {
+		return -1
+	}
+	perSec := int32(c.secSize / 4) //nolint:gosec // secSize is a small power of two
+	secIdx := int(i / perSec)
+	if secIdx >= c.ssatSecs.len() {
+		return -1
+	}
+	sid := c.ssatSecs.at(secIdx)
+	buf, ok := c.sector(sid)
+	if !ok {
+		return -1
+	}
+	entryIdx := i % perSec
+	//nolint:gosec // anything divided by 4 fits int32
+	if entryIdx >= int32(len(buf)/4) {
+		return -1 // sector truncated short of this entry
+	}
+	//nolint:gosec // intentional two's-complement reinterpretation of a sector id
+	return int32(binary.LittleEndian.Uint32(buf[4*entryIdx:]))
 }
 
 // shortStream returns the root storage short-stream pool, loading it on first
@@ -572,6 +607,9 @@ func (c *cdf) readShort(sid int32, length uint32) []byte {
 		}
 		off := int(off64)
 		out = append(out, sst[off:off+c.shortSecSize]...)
+		if length > 0 && int64(len(out)) >= int64(length) {
+			break // read enough to satisfy the stream's declared length
+		}
 		if len(out) >= len(sst) {
 			break // chain longer than the pool: cyclic SSAT, stop
 		}
