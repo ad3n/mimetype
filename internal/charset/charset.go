@@ -2,7 +2,6 @@ package charset
 
 import (
 	"bytes"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/ad3n/mimetype/internal/markup"
@@ -10,10 +9,10 @@ import (
 )
 
 const (
-	F = 0 /* character never appears in text */
-	T = 1 /* character appears in plain ASCII text */
-	I = 2 /* character appears in ISO-8859 text */
-	X = 3 /* character appears in non-ISO extended ASCII (Mac, IBM PC) */
+	F = 0
+	T = 1
+	I = 2
+	X = 3
 )
 
 var (
@@ -28,63 +27,61 @@ var (
 		{[]byte{0xFF, 0xFE}, "utf-16le"},
 	}
 
-	// https://github.com/file/file/blob/fa93fb9f7d21935f1c7644c47d2975d31f12b812/src/encoding.c#L241
 	textChars = [256]byte{
-		/*                  BEL BS HT LF VT FF CR    */
-		F, F, F, F, F, F, F, T, T, T, T, T, T, T, F, F, /* 0x0X */
-		/*                              ESC          */
-		F, F, F, F, F, F, F, F, F, F, F, T, F, F, F, F, /* 0x1X */
-		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, /* 0x2X */
-		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, /* 0x3X */
-		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, /* 0x4X */
-		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, /* 0x5X */
-		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, /* 0x6X */
-		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, F, /* 0x7X */
-		/*            NEL                            */
-		X, X, X, X, X, T, X, X, X, X, X, X, X, X, X, X, /* 0x8X */
-		X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, /* 0x9X */
-		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, /* 0xaX */
-		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, /* 0xbX */
-		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, /* 0xcX */
-		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, /* 0xdX */
-		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, /* 0xeX */
-		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, /* 0xfX */
+		F, F, F, F, F, F, F, T, T, T, T, T, T, T, F, F,
+
+		F, F, F, F, F, F, F, F, F, F, F, T, F, F, F, F,
+		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+		T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, F,
+
+		X, X, X, X, X, T, X, X, X, X, X, X, X, X, X, X,
+		X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X,
+		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
+		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
+		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
+		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
+		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
+		I, I, I, I, I, I, I, I, I, I, I, I, I, I, I, I,
 	}
 )
 
-// FromBOM returns the charset declared in the BOM of content.
 func FromBOM(content []byte) string {
 	for _, b := range boms {
 		if bytes.HasPrefix(content, b.bom) {
 			return b.enc
 		}
 	}
+
 	return ""
 }
 
-// FromPlain returns the charset of a plain text. It relies on BOM presence
-// and it falls back on checking each byte in content.
 func FromPlain(content []byte) string {
 	if len(content) == 0 {
 		return ""
 	}
+
 	if cset := FromBOM(content); cset != "" {
 		return cset
 	}
+
 	origContent := content
-	// Try to detect UTF-8.
-	// First eliminate any partial rune at the end.
+
 	for i := len(content) - 1; i >= 0 && i > len(content)-4; i-- {
 		b := content[i]
 		if b < 0x80 {
 			break
 		}
+
 		if utf8.RuneStart(b) {
 			content = content[:i]
 			break
 		}
 	}
-	// ASCII is a subset of UTF8. Follow W3C recommendation and replace with UTF8.
+
 	if utf8.Valid(content) {
 		return "utf-8"
 	}
@@ -99,26 +96,24 @@ func latin(content []byte) string {
 		if t != T && t != I {
 			return ""
 		}
+
 		if b >= 0x80 && b <= 0x9F {
 			hasControlBytes = true
 		}
 	}
-	// Code range 0x80 to 0x9F is reserved for control characters in ISO-8859-1
-	// (so-called C1 Controls). Windows 1252, however, has printable punctuation
-	// characters in this range.
+
 	if hasControlBytes {
 		return "windows-1252"
 	}
+
 	return "iso-8859-1"
 }
 
-// FromXML returns the charset of an XML document. It relies on the XML
-// header <?xml version="1.0" encoding="UTF-8"?> and falls back on the plain
-// text content.
 func FromXML(content []byte) string {
 	if cset := fromXML(content); cset != "" {
 		return cset
 	}
+
 	return FromPlain(content)
 }
 func fromXML(s scan.Bytes) string {
@@ -134,29 +129,28 @@ func fromXML(s scan.Bytes) string {
 		if i == -1 {
 			return ""
 		}
+
 		s.Advance(i + k)
 		var aName, aVal []byte
 		hasMore := true
 		for hasMore {
 			aName, aVal, hasMore = markup.GetAnAttribute(&s)
 			if scan.Bytes(aName).Match([]byte("encoding"), 0) != -1 && len(aVal) != 0 {
-				return string(aVal)
+				return charsetString(aVal)
 			}
 		}
 	}
 }
 
-// FromHTML returns the charset of an HTML document. It first looks if a BOM is
-// present and if so uses it to determine the charset. If no BOM is present,
-// it relies on the meta tag <meta charset="UTF-8"> and falls back on the
-// plain text content.
 func FromHTML(content []byte) string {
 	if cset := FromBOM(content); cset != "" {
 		return cset
 	}
+
 	if cset := fromHTML(content); cset != "" {
 		return cset
 	}
+
 	return FromPlain(content)
 }
 
@@ -173,23 +167,27 @@ func fromHTML(s scan.Bytes) string {
 		if markup.SkipAComment(&s) {
 			continue
 		}
+
 		if len(s) <= lmeta {
 			return ""
 		}
-		// Abort when <body is reached.
+
 		if s.Match(body, scan.IgnoreCase) != -1 {
 			return ""
 		}
+
 		if s.Match(meta, scan.IgnoreCase) == -1 {
-			s = s[1:] // safe to slice instead of s.Advance(1) because bounds are checked
+			s = s[1:]
 			continue
 		}
+
 		s = s[lmeta:]
 		c := s.Pop()
 		if c == 0 || (!scan.ByteIsWS(c) && c != '/') {
 			return ""
 		}
-		attrList := make(map[string]bool)
+
+		var seen uint8
 		gotPragma := false
 		needPragma := dontKnow
 
@@ -198,32 +196,43 @@ func fromHTML(s scan.Bytes) string {
 		hasMore := true
 		for hasMore {
 			aNameB, aValB, hasMore = markup.GetAnAttribute(&s)
-			aName := strings.ToLower(string(aNameB))
-			if attrList[aName] {
+			var attr uint8
+			switch {
+			case len(aNameB) == 10 && bytes.EqualFold(aNameB, []byte("http-equiv")):
+				attr = 1
+			case len(aNameB) == 7 && bytes.EqualFold(aNameB, []byte("content")):
+				attr = 2
+			case len(aNameB) == 7 && bytes.EqualFold(aNameB, []byte("charset")):
+				attr = 4
+			}
+
+			if seen&attr != 0 {
 				continue
 			}
-			// processing step
-			if len(aName) == 0 && len(aValB) == 0 {
+
+			if len(aNameB) == 0 && len(aValB) == 0 {
 				if needPragma == dontKnow {
 					continue
 				}
+
 				if needPragma == doNeedPragma && !gotPragma {
 					continue
 				}
 			}
-			attrList[aName] = true
-			switch aName {
-			case "http-equiv":
+
+			seen |= attr
+			switch attr {
+			case 1:
 				if scan.Bytes(aValB).Match([]byte("CONTENT-TYPE"), scan.IgnoreCase) != -1 {
 					gotPragma = true
 				}
-			case "content":
-				charset = string(extractCharsetFromMeta(scan.Bytes(aValB)))
+			case 2:
+				charset = charsetString(extractCharsetFromMeta(scan.Bytes(aValB)))
 				if len(charset) != 0 {
 					needPragma = doNeedPragma
 				}
-			case "charset":
-				charset = string(aValB)
+			case 4:
+				charset = charsetString(aValB)
 				needPragma = doNotNeedPragma
 			}
 		}
@@ -236,27 +245,31 @@ func fromHTML(s scan.Bytes) string {
 	}
 }
 
-// https://html.spec.whatwg.org/multipage/urls-and-fetching.html#algorithm-for-extracting-a-character-encoding-from-a-meta-element
 func extractCharsetFromMeta(s scan.Bytes) []byte {
 	for {
 		i := bytes.Index(s, []byte("charset"))
 		if i == -1 {
 			return nil
 		}
+
 		s.Advance(i + len("charset"))
 		for scan.ByteIsWS(s.Peek()) {
 			s.Advance(1)
 		}
+
 		if s.Pop() != '=' {
 			continue
 		}
+
 		for scan.ByteIsWS(s.Peek()) {
 			s.Advance(1)
 		}
+
 		quote := s.Peek()
 		if quote == 0 {
 			return nil
 		}
+
 		if quote == '"' || quote == '\'' {
 			s.Advance(1)
 			return bytes.TrimSpace(s.PopUntil(quote))
@@ -264,4 +277,21 @@ func extractCharsetFromMeta(s scan.Bytes) []byte {
 
 		return bytes.TrimSpace(s.PopUntil(';', '\t', '\n', '\x0c', '\r', ' '))
 	}
+}
+
+func charsetString(raw []byte) string {
+	switch string(raw) {
+	case "utf-8":
+		return "utf-8"
+	case "UTF-8":
+		return "UTF-8"
+	case "iso-8859-1":
+		return "iso-8859-1"
+	case "ISO-8859-1":
+		return "ISO-8859-1"
+	case "windows-1252":
+		return "windows-1252"
+	}
+
+	return string(raw)
 }

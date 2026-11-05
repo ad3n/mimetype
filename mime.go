@@ -138,7 +138,7 @@ func (m *MIME) cloneHierarchy(charset string) *MIME {
 	}
 
 	if charset != "" {
-		nodes[0].mime += "; charset=" + charset
+		nodes[0].mime = mimeWithCharset(nodes[0].mime, charset)
 	}
 
 	return &nodes[0]
@@ -178,6 +178,22 @@ func (m *MIME) Extend(detector func(raw []byte, limit uint32) bool, mime, extens
 	}
 
 	mu.Lock()
+	hasCustomDetectors = true
 	m.children = append([]*MIME{c}, m.children...)
 	mu.Unlock()
+}
+
+func mimeWithCharset(mime, charset string) string {
+	if charset == "utf-8" {
+		switch mime {
+		case "text/plain":
+			return "text/plain; charset=utf-8"
+		case "text/html":
+			return "text/html; charset=utf-8"
+		case "text/xml":
+			return "text/xml; charset=utf-8"
+		}
+	}
+
+	return mime + "; charset=" + charset
 }

@@ -47,7 +47,7 @@ type (
 	CDFType int8
 
 	cdf struct {
-		pooledBuffers   [4]*[]byte
+		pooledBuffers   [8]*[]byte
 		data            []byte
 		satSecs         int32s
 		ssat            chain
@@ -182,6 +182,24 @@ func (c *cdf) acquireBuffer() *[]byte {
 	c.pooledCount++
 
 	return buf
+}
+
+func (c *cdf) buffer(size int) []byte {
+	if size > maxPooledBufferCapacity {
+		return make([]byte, size)
+	}
+
+	bufp := c.acquireBuffer()
+	if bufp == nil {
+		return make([]byte, size)
+	}
+
+	if cap(*bufp) < size {
+		*bufp = make([]byte, size)
+	}
+
+	*bufp = (*bufp)[:size]
+	return *bufp
 }
 
 func (c *cdf) releaseBuffers() {
@@ -380,7 +398,7 @@ func (c *cdf) chainOf(sid int32, maxBytes int) chain {
 		return ch
 	}
 
-	buf := make([]byte, 4*ch.n)
+	buf := c.buffer(4 * ch.n)
 	for k, s := 0, sid; k < ch.n; k++ {
 		binary.LittleEndian.PutUint32(buf[4*k:], uint32(s)) //nolint:gosec // reinterpret sector id
 		s = c.satAt(s)
@@ -487,7 +505,16 @@ func (c *cdf) buildSAT(masterSAT int32s, firstMSAT int32, nMSAT uint32) {
 	}
 
 	maxIDs := len(c.data)/c.secSize + 1
-	buf := make([]byte, 0, 4*masterSATSize)
+	bufp := c.acquireBuffer()
+	var buf []byte
+	if bufp != nil {
+		buf = *bufp
+	}
+
+	if cap(buf) < 4*masterSATSize {
+		buf = make([]byte, 0, 4*masterSATSize)
+	}
+
 	for i := 0; i < masterSAT.len(); i++ {
 		if masterSAT.at(i) < 0 {
 			break
@@ -521,6 +548,10 @@ chain:
 		}
 
 		mid = msa.at(perSec)
+	}
+
+	if bufp != nil {
+		*bufp = buf
 	}
 
 	c.satSecs = int32s{b: buf}
@@ -566,26 +597,10 @@ func (c *cdf) readLong(sid int32, limit int) []byte {
 		return c.data[off:end]
 	}
 
-	bufp := c.acquireBuffer()
-	var out []byte
-	if bufp == nil {
-		out = make([]byte, 0, limit)
-	}
-
-	if bufp != nil {
-		out = *bufp
-		if cap(out) < limit {
-			out = make([]byte, 0, limit)
-		}
-	}
-
+	out := c.buffer(limit)[:0]
 	for k := 0; k < ch.n && len(out) < limit; k++ {
 		buf, _ := c.sector(ch.at(k))
 		out = append(out, buf[:min(len(buf), limit-len(out))]...)
-	}
-
-	if bufp != nil {
-		*bufp = out
 	}
 
 	return out
@@ -597,19 +612,7 @@ func (c *cdf) readShort(sid int32, limit int) []byte {
 		return nil
 	}
 
-	bufp := c.acquireBuffer()
-	var out []byte
-	if bufp == nil {
-		out = make([]byte, 0, limit)
-	}
-
-	if bufp != nil {
-		out = *bufp
-		if cap(out) < limit {
-			out = make([]byte, 0, limit)
-		}
-	}
-
+	out := c.buffer(limit)[:0]
 	for sid >= 0 && len(out) < limit {
 		end := (int64(sid) + 1) * int64(c.shortSecSize)
 		if c.rootStreamSize > 0 && end > int64(c.rootStreamSize) {
@@ -623,10 +626,6 @@ func (c *cdf) readShort(sid int32, limit int) []byte {
 
 		out = append(out, sec[:min(len(sec), limit-len(out))]...)
 		sid = c.ssatAt(sid)
-	}
-
-	if bufp != nil {
-		*bufp = out
 	}
 
 	return out

@@ -14,101 +14,96 @@ const (
 	maxRecursion = 4096
 )
 
-var queries = map[string][]query{
-	QueryNone: nil,
-	QueryGeo: {{
-		SearchPath: [][]byte{[]byte("type")},
-		SearchVals: [][]byte{
-			[]byte(`"Feature"`),
-			[]byte(`"FeatureCollection"`),
-			[]byte(`"Point"`),
-			[]byte(`"LineString"`),
-			[]byte(`"Polygon"`),
-			[]byte(`"MultiPoint"`),
-			[]byte(`"MultiLineString"`),
-			[]byte(`"MultiPolygon"`),
-			[]byte(`"GeometryCollection"`),
+const (
+	TokInvalid = 0
+	TokNull    = 1 << iota
+	TokTrue
+	TokFalse
+	TokNumber
+	TokString
+	TokArray
+	TokObject
+	TokComma
+)
+
+type (
+	parserState struct {
+		currPath       [][]byte
+		ib             int
+		maxRecursion   int
+		firstToken     int
+		querySatisfied bool
+	}
+
+	query struct {
+		SearchPath [][]byte
+		SearchVals [][]byte
+	}
+)
+
+var (
+	queries = map[string][]query{
+		QueryNone: nil,
+		QueryGeo: {{
+			SearchPath: [][]byte{[]byte("type")},
+			SearchVals: [][]byte{
+				[]byte(`"Feature"`),
+				[]byte(`"FeatureCollection"`),
+				[]byte(`"Point"`),
+				[]byte(`"LineString"`),
+				[]byte(`"Polygon"`),
+				[]byte(`"MultiPoint"`),
+				[]byte(`"MultiLineString"`),
+				[]byte(`"MultiPolygon"`),
+				[]byte(`"GeometryCollection"`),
+			},
+		}},
+		QueryHAR: {{
+			SearchPath: [][]byte{[]byte("log"), []byte("version")},
+		}, {
+			SearchPath: [][]byte{[]byte("log"), []byte("creator")},
+		}, {
+			SearchPath: [][]byte{[]byte("log"), []byte("entries")},
+		}},
+		QueryGLTF: {{
+			SearchPath: [][]byte{[]byte("asset"), []byte("version")},
+			SearchVals: [][]byte{[]byte(`"1.0"`), []byte(`"2.0"`)},
+		}},
+		QueryCDX: {{
+			SearchPath: [][]byte{[]byte("bomFormat")},
+			SearchVals: [][]byte{[]byte(`"CycloneDX"`)},
+		}},
+	}
+
+	parserPool = sync.Pool{
+		New: func() any {
+			return &parserState{maxRecursion: maxRecursion, firstToken: TokInvalid}
 		},
-	}},
-	QueryHAR: {{
-		SearchPath: [][]byte{[]byte("log"), []byte("version")},
-	}, {
-		SearchPath: [][]byte{[]byte("log"), []byte("creator")},
-	}, {
-		SearchPath: [][]byte{[]byte("log"), []byte("entries")},
-	}},
-	QueryGLTF: {{
-		SearchPath: [][]byte{[]byte("asset"), []byte("version")},
-		SearchVals: [][]byte{[]byte(`"1.0"`), []byte(`"2.0"`)},
-	}},
-	QueryCDX: {{
-		SearchPath: [][]byte{[]byte("bomFormat")},
-		SearchVals: [][]byte{[]byte(`"CycloneDX"`)},
-	}},
-}
+	}
 
-var parserPool = sync.Pool{
-	New: func() any {
-		return &parserState{maxRecursion: maxRecursion}
-	},
-}
-
-// parserState holds the state of JSON parsing. The number of inspected bytes,
-// the current path inside the JSON object, etc.
-type parserState struct {
-	// currPath keeps a track of the JSON keys parsed up.
-	// It works only for JSON objects. JSON arrays are ignored
-	// mainly because the functionality is not needed.
-	currPath [][]byte
-	// ib represents the number of inspected bytes.
-	// Because mimetype limits itself to only reading the header of the file,
-	// it means sometimes the input JSON can be truncated. In that case, we want
-	// to still detect it as JSON, even if it's invalid/truncated.
-	// When ib == len(input) it means the JSON was valid (at least the header).
-	ib           int
-	maxRecursion int
-	// firstToken stores the first JSON token encountered in input.
-	firstToken int
-	// querySatisfied is true if both path and value of any queries passed to
-	// consumeAny are satisfied.
-	querySatisfied bool
-}
-
-// query holds information about a combination of {"key": "val"} that we're trying
-// to search for inside the JSON.
-type query struct {
-	// SearchPath represents the whole path to look for inside the JSON.
-	// ex: [][]byte{[]byte("foo"), []byte("bar")} matches {"foo": {"bar": "baz"}}
-	SearchPath [][]byte
-	// SearchVals represents values to look for when the SearchPath is found.
-	// Each SearchVal element is tried until one of them matches (logical OR.)
-	SearchVals [][]byte
-}
+	openArray = []byte{'['}
+)
 
 func eq(path1, path2 [][]byte) bool {
 	if len(path1) != len(path2) {
 		return false
 	}
+
 	for i := range path1 {
 		if !bytes.Equal(path1[i], path2[i]) {
 			return false
 		}
 	}
+
 	return true
 }
 
-// Parse will take out a parser from the pool depending on queryType and tries
-// to parse raw bytes as JSON.
 func Parse(queryType string, raw []byte) (parsed, inspected, firstToken int, querySatisfied bool) {
 	p := parserPool.Get().(*parserState)
 	defer func() {
-		// Avoid hanging on to too much memory in extreme input cases.
-		if len(p.currPath) > 128 {
-			p.currPath = nil
-		}
+		p.reset()
 		parserPool.Put(p)
 	}()
-	p.reset()
 
 	qs := queries[queryType]
 	got := p.consumeAny(raw, qs, 0)
@@ -117,7 +112,12 @@ func Parse(queryType string, raw []byte) (parsed, inspected, firstToken int, que
 
 func (p *parserState) reset() {
 	p.ib = 0
-	p.currPath = p.currPath[0:0]
+	if cap(p.currPath) > 128 {
+		p.currPath = nil
+	}
+
+	clear(p.currPath[:cap(p.currPath)])
+	p.currPath = p.currPath[:0]
 	p.firstToken = TokInvalid
 	p.querySatisfied = false
 }
@@ -128,6 +128,7 @@ func (p *parserState) consumeSpace(b []byte) (n int) {
 		n++
 		p.ib++
 	}
+
 	return n
 }
 
@@ -137,6 +138,7 @@ func (p *parserState) consumeConst(b, cnst []byte) int {
 		if lb <= i || b[i] != c {
 			return 0
 		}
+
 		p.ib++
 	}
 
@@ -153,6 +155,7 @@ func (p *parserState) consumeString(b []byte) (n int) {
 			if len(b[n:]) == 0 {
 				return 0
 			}
+
 			switch b[n] {
 			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
 				n++
@@ -165,9 +168,11 @@ func (p *parserState) consumeString(b []byte) (n int) {
 					if !isXDigit(b[n]) {
 						return 0
 					}
+
 					n++
 					p.ib++
 				}
+
 				continue
 			default:
 				return 0
@@ -178,6 +183,7 @@ func (p *parserState) consumeString(b []byte) (n int) {
 			continue
 		}
 	}
+
 	return 0
 }
 
@@ -188,6 +194,7 @@ func (p *parserState) consumeNumber(b []byte) (n int) {
 	if len(b) == 0 {
 		goto out
 	}
+
 	if b[0] == '-' {
 		b, i = b[1:], i+1
 		p.ib++
@@ -197,28 +204,35 @@ func (p *parserState) consumeNumber(b []byte) (n int) {
 		if !isDigit(b[0]) {
 			break
 		}
+
 		got = true
 		b, i = b[1:], i+1
 		p.ib++
 	}
+
 	if len(b) == 0 {
 		goto out
 	}
+
 	if b[0] == '.' {
 		b, i = b[1:], i+1
 		p.ib++
 	}
+
 	for len(b) > 0 {
 		if !isDigit(b[0]) {
 			break
 		}
+
 		got = true
 		b, i = b[1:], i+1
 		p.ib++
 	}
+
 	if len(b) == 0 {
 		goto out
 	}
+
 	if got && (b[0] == 'e' || b[0] == 'E') {
 		b, i = b[1:], i+1
 		p.ib++
@@ -226,28 +240,30 @@ func (p *parserState) consumeNumber(b []byte) (n int) {
 		if len(b) == 0 {
 			goto out
 		}
+
 		if b[0] == '+' || b[0] == '-' {
 			b, i = b[1:], i+1
 			p.ib++
 		}
+
 		for len(b) > 0 {
 			if !isDigit(b[0]) {
 				break
 			}
+
 			got = true
 			b, i = b[1:], i+1
 			p.ib++
 		}
 	}
+
 out:
 	if got {
 		return i
 	}
+
 	return 0
 }
-
-// openArray is used instead of an inline []byte{'['} to avoid mem alllocs.
-var openArray = []byte{'['}
 
 func (p *parserState) consumeArray(b []byte, qs []query, lvl int) (n int) {
 	p.appendPath(openArray, qs)
@@ -260,19 +276,23 @@ func (p *parserState) consumeArray(b []byte, qs []query, lvl int) (n int) {
 		if len(b[n:]) == 0 {
 			return 0
 		}
+
 		if b[n] == ']' {
 			p.ib++
 			p.popLastPath(qs)
 			return n + 1
 		}
+
 		innerParsed := p.consumeAny(b[n:], qs, lvl)
 		if innerParsed == 0 {
 			return 0
 		}
+
 		n += innerParsed
 		if len(b[n:]) == 0 {
 			return 0
 		}
+
 		switch b[n] {
 		case ',':
 			n += 1
@@ -286,6 +306,7 @@ func (p *parserState) consumeArray(b []byte, qs []query, lvl int) (n int) {
 			return 0
 		}
 	}
+
 	return 0
 }
 
@@ -295,12 +316,10 @@ func queryPathMatch(qs []query, path [][]byte) int {
 			return i
 		}
 	}
+
 	return -1
 }
 
-// appendPath will append a path fragment if queries is not empty.
-// If we don't need query functionality (just checking if a JSON is valid),
-// then we can skip keeping track of the path we're currently in.
 func (p *parserState) appendPath(path []byte, qs []query) {
 	if len(qs) != 0 {
 		p.currPath = append(p.currPath, path)
@@ -318,35 +337,41 @@ func (p *parserState) consumeObject(b []byte, qs []query, lvl int) (n int) {
 		if len(b[n:]) == 0 {
 			return 0
 		}
+
 		if b[n] == '}' {
 			p.ib++
 			return n + 1
 		}
+
 		if b[n] != '"' {
 			return 0
 		}
+
 		n++
 		p.ib++
 
-		// queryMatched stores the index of the query satisfying the current path.
 		queryMatched := -1
 		keyLen := p.consumeString(b[n:])
 		if keyLen == 0 {
 			return 0
 		}
+
 		p.appendPath(b[n:n+keyLen-1], qs)
 		if !p.querySatisfied {
 			queryMatched = queryPathMatch(qs, p.currPath)
 		}
+
 		n += keyLen
 
 		n += p.consumeSpace(b[n:])
 		if len(b[n:]) == 0 {
 			return 0
 		}
+
 		if b[n] != ':' {
 			return 0
 		}
+
 		n++
 		p.ib++
 
@@ -359,21 +384,25 @@ func (p *parserState) consumeObject(b []byte, qs []query, lvl int) (n int) {
 		if valLen == 0 {
 			return 0
 		}
+
 		if queryMatched != -1 {
 			q := qs[queryMatched]
 			if len(q.SearchVals) == 0 {
 				p.querySatisfied = true
 			}
+
 			for _, val := range q.SearchVals {
 				if bytes.Equal(val, bytes.TrimSpace(b[n:n+valLen])) {
 					p.querySatisfied = true
 				}
 			}
 		}
+
 		n += valLen
 		if len(b[n:]) == 0 {
 			return 0
 		}
+
 		switch b[n] {
 		case ',':
 			p.popLastPath(qs)
@@ -388,17 +417,19 @@ func (p *parserState) consumeObject(b []byte, qs []query, lvl int) (n int) {
 			return 0
 		}
 	}
+
 	return 0
 }
 
 func (p *parserState) consumeAny(b []byte, qs []query, lvl int) (n int) {
-	// Avoid too much recursion.
 	if p.maxRecursion != 0 && lvl > p.maxRecursion {
 		return 0
 	}
+
 	if len(qs) == 0 {
 		p.querySatisfied = true
 	}
+
 	n += p.consumeSpace(b)
 	if len(b[n:]) == 0 {
 		return 0
@@ -434,12 +465,15 @@ func (p *parserState) consumeAny(b []byte, qs []query, lvl int) (n int) {
 		rv = p.consumeNumber(b[n:])
 		t = TokNumber
 	}
+
 	if lvl == 0 {
 		p.firstToken = t
 	}
+
 	if rv <= 0 {
 		return n
 	}
+
 	n += rv
 	n += p.consumeSpace(b[n:])
 	return n
@@ -456,17 +490,6 @@ func isXDigit(c byte) bool {
 	if isDigit(c) {
 		return true
 	}
+
 	return ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
 }
-
-const (
-	TokInvalid = 0
-	TokNull    = 1 << iota
-	TokTrue
-	TokFalse
-	TokNumber
-	TokString
-	TokArray
-	TokObject
-	TokComma
-)
