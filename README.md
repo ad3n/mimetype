@@ -49,6 +49,26 @@ fmt.Println(mtype.String(), mtype.Extension())
 ```
 See the [runnable Go Playground examples](https://pkg.go.dev/github.com/ad3n/mimetype#pkg-overview).
 
+When only the media type and extension are needed, use the string-result API:
+
+```go
+mediaType, extension := mimetype.DetectType(data)
+mediaType, extension, err := mimetype.DetectReaderType(reader)
+```
+
+These functions use the same detectors and read limit as `Detect` and
+`DetectReader`, without allocating a MIME hierarchy. Common UTF-8 text, HTML,
+XML, JSON, and PNG inputs can be detected without per-call heap allocations
+after reader and parser pools warm up. Other formats, arbitrary charset labels,
+custom detectors, and pool misses can still allocate. Returned strings remain
+valid after subsequent calls and do not alias pooled input buffers.
+
+Reader buffers up to 64 KiB are pooled and cleared before reuse. Custom
+detectors receive an owned copy when a reader buffer is pooled, so retaining
+their input is safe. MIME results from the original API are not pooled because
+callers can retain and extend them. `SetLimit(0)` still reads the entire input;
+use a finite limit when processing untrusted streams.
+
 Caution: only use libraries like **mimetype** as a last resort. Content type detection
 using magic numbers is slow, inaccurate, and non-standard. Most of the times
 protocols have methods for specifying such metadata; e.g., `Content-Type` header

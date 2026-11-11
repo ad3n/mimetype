@@ -69,9 +69,18 @@ func (m *MIME) alias(aliases ...string) *MIME {
 }
 
 func (m *MIME) match(in []byte, readLimit uint32) *MIME {
+	m, detectedCharset := m.matchType(in, readLimit)
+	if detectedCharset == "" {
+		return m
+	}
+
+	return m.cloneHierarchy(detectedCharset)
+}
+
+func (m *MIME) matchType(in []byte, readLimit uint32) (*MIME, string) {
 	for _, c := range m.children {
 		if c.detector(in, readLimit) {
-			return c.match(in, readLimit)
+			return c.matchType(in, readLimit)
 		}
 	}
 
@@ -86,10 +95,10 @@ func (m *MIME) match(in []byte, readLimit uint32) *MIME {
 	}
 
 	if m == root || detectedCharset == "" {
-		return m
+		return m, ""
 	}
 
-	return m.cloneHierarchy(detectedCharset)
+	return m, detectedCharset
 }
 
 func (m *MIME) flatten() []*MIME {
