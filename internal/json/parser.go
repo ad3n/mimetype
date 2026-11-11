@@ -471,7 +471,7 @@ func (p *parserState) consumeAny(b []byte, qs []query, lvl int) (n int) {
 	}
 
 	if rv <= 0 {
-		return n
+		return 0
 	}
 
 	n += rv
