@@ -146,44 +146,54 @@ func (p *parserState) consumeConst(b, cnst []byte) int {
 }
 
 func (p *parserState) consumeString(b []byte) (n int) {
+	if len(b) >= 128 {
+		n = indexStringSpecialGo(b[:16])
+		if n == 16 {
+			n += indexStringSpecial(b[n:])
+		}
+	}
+
 	var c byte
-	for len(b[n:]) > 0 {
+	for n < len(b) {
 		c, n = b[n], n+1
-		p.ib++
 		switch c {
 		case '\\':
 			if len(b[n:]) == 0 {
+				p.ib += n
 				return 0
 			}
 
 			switch b[n] {
 			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
 				n++
-				p.ib++
 				continue
 			case 'u':
 				n++
-				p.ib++
-				for j := 0; j < 4 && len(b[n:]) > 0; j++ {
-					if !isXDigit(b[n]) {
+				digits := min(4, len(b)-n)
+				for j := range digits {
+					if !isXDigit(b[n+j]) {
+						n += j
+						p.ib += n
 						return 0
 					}
-
-					n++
-					p.ib++
 				}
+
+				n += digits
 
 				continue
 			default:
+				p.ib += n
 				return 0
 			}
 		case '"':
+			p.ib += n
 			return n
 		default:
 			continue
 		}
 	}
 
+	p.ib += n
 	return 0
 }
 

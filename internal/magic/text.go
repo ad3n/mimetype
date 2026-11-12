@@ -291,26 +291,21 @@ func Shell(raw []byte, _ uint32) bool {
 	)
 }
 
-// Text matches a plain text file.
-//
-// TODO: This function does not parse BOM-less UTF16 and UTF32 files. Not really
-// sure it should. libmagic also requires a BOM for UTF16 and UTF32.
 func Text(raw []byte, _ uint32) bool {
-	// First look for BOM.
 	if cset := charset.FromBOM(raw); cset != "" {
 		return true
 	}
-	// Binary data bytes as defined here: https://mimesniff.spec.whatwg.org/#binary-data-byte
-	for i := 0; i < min(len(raw), 4096); i++ {
-		b := raw[i]
-		if b <= 0x08 ||
-			b == 0x0B ||
-			0x0E <= b && b <= 0x1A ||
-			0x1C <= b && b <= 0x1F {
-			return false
-		}
+
+	raw = raw[:min(len(raw), 4096)]
+	if len(raw) < 16 {
+		return textBytesGo(raw)
 	}
-	return true
+
+	if raw[0] <= 0x08 {
+		return false
+	}
+
+	return textBytes(raw)
 }
 
 // XHTML matches an XHTML file. This check depends on the XML check to have passed.

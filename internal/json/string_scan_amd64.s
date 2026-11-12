@@ -1,0 +1,130 @@
+//go:build !purego
+
+#include "textflag.h"
+
+TEXT ·supportsStringAVX2(SB), NOSPLIT, $0-1
+	XORL AX, AX
+	CPUID
+	CMPL AX, $7
+	JB unsupported
+	MOVL $1, AX
+	CPUID
+	ANDL $0x1c000000, CX
+	CMPL CX, $0x1c000000
+	JNE unsupported
+	XORL CX, CX
+	XGETBV
+	ANDL $6, AX
+	CMPL AX, $6
+	JNE unsupported
+	MOVL $7, AX
+	XORL CX, CX
+	CPUID
+	BTL $5, BX
+	JNC unsupported
+	MOVB $1, ret+0(FP)
+	RET
+
+unsupported:
+	MOVB $0, ret+0(FP)
+	RET
+
+TEXT ·indexStringSpecialSSE2(SB), NOSPLIT, $0-32
+	MOVQ raw_base+0(FP), AX
+	MOVQ raw_len+8(FP), CX
+	MOVQ AX, DI
+	MOVQ $0x2222222222222222, R8
+	MOVQ R8, X0
+	MOVQ $0x5c5c5c5c5c5c5c5c, R8
+	MOVQ R8, X1
+	PUNPCKLQDQ X0, X0
+	PUNPCKLQDQ X1, X1
+
+vectorSSE2:
+	CMPQ CX, $16
+	JB tailSSE2
+	MOVOU (AX), X2
+	MOVOU X2, X3
+	PCMPEQB X0, X2
+	PCMPEQB X1, X3
+	POR X3, X2
+	PMOVMSKB X2, R8
+	TESTL R8, R8
+	JNE foundSSE2
+	ADDQ $16, AX
+	SUBQ $16, CX
+	JMP vectorSSE2
+
+foundSSE2:
+	BSFL R8, R8
+	ADDQ R8, AX
+	JMP doneSSE2
+
+tailSSE2:
+scalarSSE2:
+	TESTQ CX, CX
+	JE doneSSE2
+	MOVBLZX (AX), R8
+	CMPB R8, $34
+	JE doneSSE2
+	CMPB R8, $92
+	JE doneSSE2
+	INCQ AX
+	DECQ CX
+	JMP scalarSSE2
+
+doneSSE2:
+	SUBQ DI, AX
+	MOVQ AX, ret+24(FP)
+	RET
+
+TEXT ·indexStringSpecialAVX2(SB), NOSPLIT, $0-32
+	MOVQ raw_base+0(FP), AX
+	MOVQ raw_len+8(FP), CX
+	MOVQ AX, DI
+	MOVQ $0x2222222222222222, R8
+	MOVQ R8, X0
+	MOVQ $0x5c5c5c5c5c5c5c5c, R8
+	MOVQ R8, X1
+	VPBROADCASTB X0, Y0
+	VPBROADCASTB X1, Y1
+
+vectorAVX2:
+	CMPQ CX, $32
+	JB tailAVX2
+	VMOVDQU (AX), Y2
+	VPCMPEQB Y0, Y2, Y3
+	VPCMPEQB Y1, Y2, Y4
+	VPOR Y3, Y4, Y3
+	VPMOVMSKB Y3, R8
+	TESTL R8, R8
+	JNE foundAVX2
+	ADDQ $32, AX
+	SUBQ $32, CX
+	JMP vectorAVX2
+
+foundAVX2:
+	BSFL R8, R8
+	ADDQ R8, AX
+	JMP doneAVX2
+
+tailAVX2:
+	VZEROUPPER
+scalarAVX2:
+	TESTQ CX, CX
+	JE doneAVX2
+	MOVBLZX (AX), R8
+	CMPB R8, $34
+	JE doneAVX2
+	CMPB R8, $92
+	JE doneAVX2
+	INCQ AX
+	DECQ CX
+	JMP scalarAVX2
+
+doneAVX2:
+	VZEROUPPER
+	SUBQ DI, AX
+	MOVQ AX, ret+24(FP)
+	RET
+
